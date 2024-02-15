@@ -1,4 +1,4 @@
-#The source code to reproduce Figure 2
+#The source code to reproduce Figure 2.
 library(tidyverse)
 library(furrr)
 library(dyno)
