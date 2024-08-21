@@ -13,14 +13,13 @@ library(scales)
 library(irlba)
 library(plotROC)
 library(GGally)
-set.seed(8)
 theme_set(theme_bw(base_size = 20))
 
 #parameters and functions
-num.cores <- 8
-num.features <- 1000
+num.features <- 2000
 cell.range <- c(250, 500, 1000)
 de.rate <- 0.5
+noise <- 0.4
 FQnorm <- function(counts){
   rk <- apply(counts,2,rank,ties.method='min')
   counts.sort <- apply(counts,2,sort)
@@ -70,8 +69,8 @@ LS <- function(g, time1, exp1, time2 = NULL, exp2 = NULL, min.freq = 0, max.freq
 
 for(model in c("linear", "bifurcating")){
   for(num.cells in cell.range){
-    set.seed(1)
     #model generation
+    set.seed(1)
     dataset <- dyntoy::generate_dataset(model = model,
                                         num_cells = num.cells,
                                         num_features = num.features,
@@ -80,7 +79,7 @@ for(model in c("linear", "bifurcating")){
       add_pseudotime()
     g <- plot_dimred(dataset, color_cells = "pseudotime")
     print(g)
-    ggsave(g, file = str_c("./plots/models/", model, "_", num.cells, "cells_pseudotime.pdf"), dpi = 300)
+    ggsave(g, file = str_c("./plots/models/", model, "_", num.cells, "cells_pseudotime.pdf"), width = 12, height = 12, dpi = 300)
     save(dataset, file = str_c("./models/", model, "_", num.cells, "cells.RData"))
   }
 }
@@ -101,7 +100,9 @@ for(model in c("linear", "bifurcating")){
 
     #analysis
     counts <- t(as.matrix(dataset$counts))
-    expression <- t(as.matrix(dataset$expression))
+    counts <- counts * rnorm(counts, mean = 1, sd = noise)
+    counts[counts < 0] <- 0
+    expression <- edgeR::cpm(counts)
     sce <- SingleCellExperiment(assays = List(counts = counts, log2 = log2(counts)))
     
     #Ground_truth
@@ -116,7 +117,7 @@ for(model in c("linear", "bifurcating")){
     plan(multisession)
     ls.res <- future_map_dfr(rownames(expression), LS, .pseudotime, expression,
                              .options = furrr_options(seed = 8))
-    
+
     #tradeSeq
     cellWeights <- rep(1, num.cells)
     sce <- fitGAM(counts = counts, pseudotime = pseudotime, cellWeights = cellWeights,
@@ -133,13 +134,12 @@ for(model in c("linear", "bifurcating")){
     
     .design <- matrix(c(1, 1, 0, 1), ncol = 2, dimnames = list(c("WT1", "WT2"), c("intercept", "group")))
     lamian.res <- NULL
-    try(lamian.res <- lamian_test(expr = expression,
+    try(lamian.res <- lamian_test(expr = log2(expression + 1),
                                   cellanno = .cellanno,
                                   pseudotime = pseudotime,
                                   design = .design,
                                   test.type = 'time',
-                                  permuiter = 100,
-                                  ncores = num.cores))
+                                  permuiter = 100))
     
     if(!is.null(lamian.res)){
       res <- res %>% add_row(gene = c(ls.res$gene, rownames(sveRes), rownames(assoRes), rownames(lamian.res$statistics)),
@@ -219,13 +219,12 @@ for(model in c("linear", "bifurcating")){
     .design <- matrix(c(1, 1, 0, 1), ncol = 2, dimnames = list(c("WT1", "WT2"), c("intercept", "group")))
     
     lamian.res <- NULL
-    try(lamian.res <- lamian_test(expr = expression,
+    try(lamian.res <- lamian_test(expr = log2(expression + 1),
                               cellanno = .cellanno,
                               pseudotime = pseudotime,
                               design = .design,
                               test.type = 'time',
-                              permuiter = 100,
-                              ncores = num.cores))
+                              permuiter = 100))
     
     if(!is.null(lamian.res)){
       res <- res %>% add_row(gene = c(ls.res$gene, rownames(sveRes), rownames(assoRes), rownames(lamian.res$statistics)),
@@ -295,13 +294,12 @@ for(model in c("linear", "bifurcating")){
     }
     .design <- matrix(c(1, 1, 0, 1), ncol = 2, dimnames = list(c("WT1", "WT2"), c("intercept", "group")))
     lamian.res <- NULL 
-    try(lamian.res <- lamian_test(expr = expression,
+    try(lamian.res <- lamian_test(expr = log2(expression + 1),
                               cellanno = .cellanno,
                               pseudotime = .pseudotime,
                               design = .design,
                               test.type = 'time',
-                              permuiter = 100,
-                              ncores = num.cores))
+                              permuiter = 100))
     
     if(!is.null(lamian.res)){
       res <- res %>% add_row(gene = c(ls.res$gene, rownames(sveRes), rownames(assoRes), rownames(lamian.res$statistics)),
@@ -339,9 +337,10 @@ for(model in c("linear", "bifurcating")){
     geom_roc(n.cuts = FALSE, linealpha = 0.8) +
     ggtitle(model) + xlab("False positive rate") +
     ylab("True positive rate") +
-    facet_grid(pt.method ~ cell.num)
+    facet_grid(pt.method ~ cell.num) +
+    theme(legend.position = "none")
   g
-  ggsave(g, file = str_c("./plots/res/ROC_", model, ".pdf"), dpi = 300)
+  ggsave(g, file = str_c("./plots/res/ROC_", model, ".pdf"), width = 12, height = 12, dpi = 300)
 
   auc <- tibble(method = NA, cell.num = NA, AUC = NA)
   for(i in c("LS", "tradeSeq_startVsEnd", "tradeSeq_asso", "Lamian")){
@@ -360,7 +359,7 @@ for(model in c("linear", "bifurcating")){
     facet_wrap(. ~ cell.num) +
     coord_cartesian(ylim = c(0.9, 1.)) +
     theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave(g, file = str_c("./plots/res/AUC_", model, ".pdf"), dpi = 300)
+  ggsave(g, file = str_c("./plots/res/AUC_", model, ".pdf"), width = 12, height = 12, dpi = 300)
 
   load(str_c("res/pt_", model, ".RData"))
   d <- rbind(inner_join(pt.df %>% filter(pt.method == "Ground_truth"),
@@ -371,103 +370,23 @@ for(model in c("linear", "bifurcating")){
   g <- g + geom_point() + facet_grid(pt.method.y ~ cell.num, scales = "free")
   g <- g + ggtitle(model) + xlab("Pseudotime of groud truth") + ylab("Predicted pseudotime")
   g
-  ggsave(g, file = str_c("./plots/res/cor_", model, ".pdf"), dpi = 300)
+  ggsave(g, file = str_c("./plots/res/cor_", model, ".pdf"), width = 12, height = 8, dpi = 300)
 }
 
-load("./models/bifurcating_500cells.RData")
-load("./res/res_bifurcating.RData")
-res <- res %>% filter(cell.num == 500)
-expression <- t(as.matrix(dataset$expression))
-pseudotime.gt <- pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500)
-pseudotime.monocle3 <- pt.df %>% filter(pt.method == "Monocle3", cell.num == 500)
-pseudotime.slingshot <- pt.df %>% filter(pt.method == "Slingshot", cell.num == 500)
-
-for(id in res$gene %>% unique){
-  d <- tibble(Pseudotime = dataset$pseudotime, Expression = expression[rownames(expression) == id,])
-  Pseudotime <- pt.df %>% filter(pt.method == "Ground_truth")
-  stats <- res %>% filter(gene == id, cell.num == 500, pt.method == "Ground_truth")
-  str <- str_c("Lomb-Scargle's p = ", stats %>% filter(method == "LS") %>% .$p %>% formatC(digits = 2), "\n",
-               "tradeSeq (startVsEnd)'s p = ", stats %>% filter(method == "tradeSeq_startVsEnd") %>% .$p %>% formatC(digits = 2), "\n",
-               "tradeSeq (association)'s p = ", stats %>% filter(method == "tradeSeq_asso") %>% .$p %>% formatC(digits = 2), "\n",
-               "Lamian's p = ", stats %>% filter(method == "Lamian") %>% .$p %>% formatC(digits = 2))
-  
-  g <- ggplot(d, aes(x = Pseudotime, y = Expression)) +
-    geom_point() +
-    geom_label(x = max(d$Pseudotime) * 0.85, y = max(d$Expression) * 0.9, label = str) +
-    ggtitle(str_c("Ground truth, ", id))
-  ggsave(g, file = str_c("./plots/gene/", id, ".pdf"), dpi = 300)
+for(model in c("linear", "bifurcating")){
+  load(str_c("./res/res_", model, ".RData"))
+  g <- ggplot(res, aes(d = answer, m = 1 - p, colour = pt.method)) +
+    geom_roc(n.cuts = FALSE, linealpha = 1) +
+    xlab("False positive rate") + ylab("True positive rate") + ggtitle(model) +
+    facet_grid(cell.num ~ method) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    theme(legend.position = "bottom", legend.title=element_blank())
+  g
+  calc_auc(g) %>%
+    tibble %>%
+    select(-c(PANEL, group)) %>%
+    pivot_wider(names_from = method, values_from = AUC) %>%
+    arrange(cell.num, pt.method) %>%
+    select(cell.num, pt.method, LS, tradeSeq_startVsEnd, tradeSeq_asso, Lamian) %>%
+    mutate_if(is.numeric, round, 3) %>%
+    write_csv(file = str_c(model, ".csv"))
 }
-
-#example
-load("./models/linear_500cells.RData")
-load("./res/res_linear.RData")
-load("./res/pt_linear.RData")
-res <- res %>% filter(cell.num == 500)
-expression <- t(as.matrix(dataset$expression))
-pseudotime <- pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500)
-stats <- res %>% filter(gene %in% c("G1", "G12", "G13"), pt.method == "Ground_truth", cell.num == 500)
-d <- tibble(backbone = rep("linear", each = ncol(expression)),
-            DEG = "DEG",
-            Pseudotime = pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500) %>% .$pseudotime,
-            Expression = expression[rownames(expression) == "G12",]) %>%
-  add_row(backbone = rep("linear", each = length(dataset$pseudotime)),
-          DEG = "non-DEG",
-          Pseudotime = pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500) %>% .$pseudotime,
-          Expression = expression[rownames(expression) == "G11",])
-str <- tibble(backbone = "linear",
-              DEG = "DEG",
-              label = str_c("Lomb-Scargle's p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "LS") %>% .$p %>% formatC(digits = 2), "\n",
-                            "tradeSeq (startVsEnd)'s p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "tradeSeq_startVsEnd") %>% .$p %>% formatC(digits = 2, format = "e"), "\n",
-                            "tradeSeq (association)'s p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "tradeSeq_asso") %>% .$p %>% formatC(digits = 2), "\n",
-                            "Lamian's p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "Lamian") %>% .$p %>% formatC(digits = 2))) %>%
-  add_row(backbone = "linear",
-          DEG = "non-DEG",
-          label = str_c("Lomb-Scargle's p = ", stats %>% filter(gene == "G1", pt.method == "Ground_truth", method == "LS") %>% .$p %>% formatC(digits = 2), "\n",
-                        "tradeSeq (startVsEnd)'s p = ", stats %>% filter(gene == "G1", pt.method == "Ground_truth", method == "tradeSeq_startVsEnd") %>% .$p %>% formatC(digits = 2, format = "e"), "\n",
-                        "tradeSeq (association)'s p = ", stats %>% filter(gene == "G1", pt.method == "Ground_truth", method == "tradeSeq_asso") %>% .$p %>% formatC(digits = 2), "\n",
-                        "Lamian's p = ", stats %>% filter(gene == "G1", pt.method == "Ground_truth", method == "Lamian") %>% .$p %>% formatC(digits = 2)))
-
-load("./models/bifurcating_500cells.RData")
-load("./res/res_bifurcating.RData")
-load("./res/pt_bifurcating.RData")
-res <- res %>% filter(cell.num == 500)
-expression <- t(as.matrix(dataset$expression))
-pseudotime <- pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500)
-stats <- res %>% filter(gene %in% c("G1", "G12", "G13"), pt.method == "Ground_truth", cell.num == 500)
-d <- d %>%
-  add_row(backbone = rep("bifurcating", each = ncol(expression)),
-          DEG = "DEG",
-          Pseudotime = pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500) %>% .$pseudotime,
-          Expression = expression[rownames(expression) == "G12",]) %>%
-  add_row(backbone = rep("bifurcating", each = length(dataset$pseudotime)),
-          DEG = "non-DEG",
-          Pseudotime = pt.df %>% filter(pt.method == "Ground_truth", cell.num == 500) %>% .$pseudotime,
-          Expression = expression[rownames(expression) == "G13",])
-
-str <- str %>%
-  add_row(backbone = "bifurcating",
-              DEG = "DEG",
-              label = str_c("Lomb-Scargle's p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "LS") %>% .$p %>% formatC(digits = 2), "\n",
-                            "tradeSeq (startVsEnd)'s p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "tradeSeq_startVsEnd") %>% .$p %>% formatC(digits = 2, format = "e"), "\n",
-                            "tradeSeq (association)'s p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "tradeSeq_asso") %>% .$p %>% formatC(digits = 2), "\n",
-                            "Lamian's p = ", stats %>% filter(gene == "G12", pt.method == "Ground_truth", method == "Lamian") %>% .$p %>% formatC(digits = 2))) %>%
-  add_row(backbone = "bifurcating",
-          DEG = "non-DEG",
-          label = str_c("Lomb-Scargle's p = ", stats %>% filter(gene == "G13", pt.method == "Ground_truth", method == "LS") %>% .$p %>% formatC(digits = 2), "\n",
-                        "tradeSeq (startVsEnd)'s p = ", stats %>% filter(gene == "G13", pt.method == "Ground_truth", method == "tradeSeq_startVsEnd") %>% .$p %>% formatC(digits = 2, format = "e"), "\n",
-                        "tradeSeq (association)'s p = ", stats %>% filter(gene == "G13", pt.method == "Ground_truth", method == "tradeSeq_asso") %>% .$p %>% formatC(digits = 2), "\n",
-                        "Lamian's p = ", stats %>% filter(gene == "G13", pt.method == "Ground_truth", method == "Lamian") %>% .$p %>% formatC(digits = 2)))
-str <- na.omit(str)
-str$x <- 0.5
-str$y <- 0.5
-
-d$backbone <- factor(d$backbone, levels = c("linear", "bifurcating"))
-str$backbone <- factor(str$backbone, levels = c("linear", "bifurcating"))
-g <- ggplot(d, aes(x = Pseudotime, y = Expression)) +
-  geom_point() +
-  facet_grid(DEG ~ backbone, scales = "free") +
-  #geom_label(x = max(d$Pseudotime) * 0.1, y = max(d$Expression) * 0.2, label = str) +
-  geom_label(aes(x, y, label = label, vjust = 0.1, hjust = 0.3), data = str)
-g
-ggsave(g, file = "./plots/example.pdf", dpi = 300)  
-
