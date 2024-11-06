@@ -1,5 +1,11 @@
 This is a small example and all the source code related to Iuchi and Hamada, 2024.
 
+[Figure2]([https://pages.github.com/](https://github.com/hiuchi/LS/blob/main/Figure_2))
+[Figure3]([https://pages.github.com/](https://github.com/hiuchi/LS/blob/main/Figure_3))
+[Figure4]([https://pages.github.com/](https://github.com/hiuchi/LS/blob/main/Figure_4))
+[Figure5]([https://pages.github.com/](https://github.com/hiuchi/LS/blob/main/Figure_5))
+
+
 ```
 library(tidyverse)
 library(dyno)
