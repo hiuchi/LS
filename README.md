@@ -25,8 +25,8 @@ LS <- function(g, time1, exp1, time2 = NULL, exp2 = NULL, min.freq = 0, max.freq
   if(is.null(time2)){
     seq1 <- exp1[which(rownames(exp1) == g),]
     ls1 <- spec.lomb(x = time1, y = seq1,
-                     f = seq(min.freq, max.freq, length = length.freq), mode = m) %>% .quiet
-    return(tibble(gene = g, p.dynamic = min(ls1$p), p.de = NA))
+                     f = seq(min.freq, max.freq, length = length.freq), mode = method.ls) %>% .quiet
+    return(tibble(gene = g, p.dynamic = min(ls1$p), p.shift = NA))
   }else{
     time2 <- time2[!is.infinite(time2)]
     exp2 <- exp2[,!is.infinite(time2)]
@@ -48,7 +48,7 @@ LS <- function(g, time1, exp1, time2 = NULL, exp2 = NULL, min.freq = 0, max.freq
       null.hypothesis <- c(null.hypothesis, dist(rbind(sim.ls1$A, sim.ls2$A), method = method.dist))
     }
     p <- sum(dist(rbind(ls1$A, ls2$A), method = method.dist) <  null.hypothesis) / sim.num
-    return(tibble(gene = g, p.dynamic = min(c(ls1$p, ls2$p)), p.de = p))
+    return(tibble(gene = g, p.dynamic = min(c(ls1$p, ls2$p)), p.shift = p))
   }
 }
 
@@ -63,8 +63,8 @@ dataset <- generate_dataset(model = model,
                             num_cells = num.cells,
                             num_features = num.features,
                             differentially_expressed_rate = de.rate) %>%
-      add_root(root_milestone_id = .$prior_information$start_milestones) %>%
-      add_pseudotime()
+  add_root(root_milestone_id = .$prior_information$start_milestones) %>%
+  add_pseudotime()
 expression <- cpm(t(as.matrix(dataset$counts)))
 pseudotime <- dataset$pseudotime / max(dataset$pseudotime)
 pt.df <- tibble(pt.method = "Ground_truth",
@@ -81,19 +81,19 @@ ko.rate <- 0
 num.cores <- 8
 backbone <- backbone_linear()
 config <- initialise_model(backbone = backbone,
-                             num_cells = num.cells,
-                             num_tfs = nrow(backbone$module_info),
-                             num_targets = num.targets,
-                             num_hks = num.hks,
-                             num_cores = num.cores,
-                             simulation_params = simulation_default(census_interval = 10,
-                                                                    ssa_algorithm = ssa_etl(tau = 300 / 3600),
-                                                                    experiment_params = simulation_type_wild_type(num_simulations = 100)))
+                           num_cells = num.cells,
+                           num_tfs = nrow(backbone$module_info),
+                           num_targets = num.targets,
+                           num_hks = num.hks,
+                           num_cores = num.cores,
+                           simulation_params = simulation_default(census_interval = 10,
+                                                                  ssa_algorithm = ssa_etl(tau = 300 / 3600),
+                                                                  experiment_params = simulation_type_wild_type(num_simulations = 100)))
 model_common <- config %>%
-    generate_tf_network() %>%
-    generate_feature_network() %>% 
-    generate_kinetics() %>%
-    generate_gold_standard()
+  generate_tf_network() %>%
+  generate_feature_network() %>% 
+  generate_kinetics() %>%
+  generate_gold_standard()
 model_wt <- model_common %>% generate_cells()
 model_ko <- model_common
 model_ko$simulation_params$experiment_params <- simulation_type_knockdown(num_simulations = 100,
