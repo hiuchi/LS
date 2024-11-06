@@ -1,9 +1,8 @@
-This is a small example and all the source code related to Iuchi and Hamada, 2024.
-
-[Figure2](https://github.com/hiuchi/LS/blob/main/Figure_2)
-[Figure3](https://github.com/hiuchi/LS/blob/main/Figure_3)
-[Figure4](https://github.com/hiuchi/LS/blob/main/Figure_4)
-[Figure5](https://github.com/hiuchi/LS/blob/main/Figure_5)
+This is all the source code and a small example related to Iuchi and Hamada, 2024.
+[Figure2](https://github.com/hiuchi/LS/blob/main/Figure_2)  
+[Figure3](https://github.com/hiuchi/LS/blob/main/Figure_3)  
+[Figure4](https://github.com/hiuchi/LS/blob/main/Figure_4)  
+[Figure5](https://github.com/hiuchi/LS/blob/main/Figure_5)  
 
 
 ```
