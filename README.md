@@ -71,9 +71,12 @@ pt.df <- tibble(pt.method = "Ground_truth",
                 cell.num = num.cells,
                 cell = colnames(expression),
                 pseudotime = dataset$pseudotime)
-ls.res <- map_dfr(rownames(expression), LS, pseudotime, expression)
+
+#Perform a dynamic test
+res <- map_dfr(rownames(expression), LS, pseudotime, expression)
 
 #Shifted test
+#Generation of simulation data
 num.targets <- 250
 num.hks <- 250
 ko_gene <- "C1_TF1"
@@ -109,5 +112,23 @@ wt.pseudotime <- wt$pseudotime
 ko.expression <- ko$expression %>% as.matrix() %>% t()
 ko.pseudotime <- ko$pseudotime
 
-res.LS <- map_dfr(rownames(wt.expression), LS, wt.pseudotime, wt.expression, ko.pseudotime, ko.expression)
+#Perform a shifted test
+res <- map_dfr(rownames(wt.expression), LS, wt.pseudotime, wt.expression, ko.pseudotime, ko.expression)
+
+res
+# A tibble: 519 × 3
+   gene      p.dynamic  p.de
+   <chr>         <dbl> <dbl>
+ 1 Burn1_TF1  1.13e-29  0.24
+ 2 Burn2_TF1  1.61e-35  0.4 
+ 3 Burn3_TF1  3.80e-23  0.14
+ 4 Burn4_TF1  2.56e-35  0.4 
+ 5 Burn5_TF1  1.29e-23  0.19
+ 6 A1_TF1     1.89e-28  0.83
+ 7 A2_TF1     1.40e-52  0.68
+ 8 A3_TF1     9.26e- 8  0.68
+ 9 A4_TF1     1.93e-56  0.72
+10 B1_TF1     8.38e-64  0.34
+# ℹ 509 more rows
+# ℹ Use `print(n = ...)` to see more rows
 ```
