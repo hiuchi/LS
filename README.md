@@ -14,7 +14,7 @@ library(edgeR)
 library(spectral)
 
 #Function difinition
-LS <- function(g, time1, exp1, time2 = NULL, exp2 = NULL, min.freq = 0, max.freq = 1, length.freq = 101, m = "generalized", sim.num = 100){
+LS <- function(g, time1, exp1, time2 = NULL, exp2 = NULL, min.freq = 0, max.freq = 1, length.freq = 101, method.ls = "generalized", method.dist = "canberra", sim.num = 100){
   .quiet <- function(x){ 
     sink(tempfile()) 
     on.exit(sink()) 
@@ -33,21 +33,21 @@ LS <- function(g, time1, exp1, time2 = NULL, exp2 = NULL, min.freq = 0, max.freq
     seq1 <- exp1[which(rownames(exp1) == g),]
     seq2 <- exp2[which(rownames(exp2) == g),]
     ls1 <- spec.lomb(x = time1, y = seq1,
-                     f = seq(min.freq, max.freq, length = length.freq), mode = m) %>% .quiet
+                     f = seq(min.freq, max.freq, length = length.freq), mode = method.ls) %>% .quiet
     ls2 <- spec.lomb(x = time2, y = seq2,
-                     f = seq(min.freq, max.freq, length = length.freq), mode = m) %>% .quiet
+                     f = seq(min.freq, max.freq, length = length.freq), mode = method.ls) %>% .quiet
     
     null.hypothesis <- NULL
     for(i in seq(sim.num)){
       sim.ls1 <- spec.lomb(x = sample(time1, length(time1)),
                            y = seq1,
-                           f = seq(min.freq, max.freq, length = length.freq), mode = m) %>% .quiet
+                           f = seq(min.freq, max.freq, length = length.freq), mode = method.ls) %>% .quiet
       sim.ls2 <- spec.lomb(x = sample(time2, length(time2)),
                            y = seq2,
-                           f = seq(min.freq, max.freq, length = length.freq), mode = m) %>% .quiet
-      null.hypothesis <- c(null.hypothesis, dist(rbind(sim.ls1$A, sim.ls2$A), method = m))
+                           f = seq(min.freq, max.freq, length = length.freq), mode = method.ls) %>% .quiet
+      null.hypothesis <- c(null.hypothesis, dist(rbind(sim.ls1$A, sim.ls2$A), method = method.dist))
     }
-    p <- sum(dist(rbind(ls1$A, ls2$A)) <  null.hypothesis) / sim.num
+    p <- sum(dist(rbind(ls1$A, ls2$A), method = method.dist) <  null.hypothesis) / sim.num
     return(tibble(gene = g, p.dynamic = min(c(ls1$p, ls2$p)), p.de = p))
   }
 }
@@ -110,5 +110,4 @@ ko.expression <- ko$expression %>% as.matrix() %>% t()
 ko.pseudotime <- ko$pseudotime
 
 res.LS <- map_dfr(rownames(wt.expression), LS, wt.pseudotime, wt.expression, ko.pseudotime, ko.expression)
-
 ```
